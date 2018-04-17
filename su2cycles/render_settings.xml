@@ -1,0 +1,68 @@
+<Root Label="Default Render Settings" Name="" Type="Render Settings">
+<Object Identifier="./Modellers/XML Modeller" Label="XML Modeller" Name="XML Modeller" Type="Modeller">
+</Object>
+<Object Identifier="./Ray Tracers/Standard Ray Tracer" Label="Standard Ray Tracer" Name="Standard Ray Tracer" Type="Ray Tracer">
+	<Parameter Name="Rasterization" Type="String" Value="Auto"/>
+	<Parameter Name="Antialiasing" Type="String" Value="Production AA"/>
+	<Parameter Name="Antialiasing Filter" Type="String" Value="Mitchell-Netravali 0.5 0.8"/>
+	<Parameter Name="Antialiasing Threshold" Type="Real" Value="0.3"/>
+	<Parameter Name="Texture Filtering" Type="Boolean" Value="1"/>
+	<Parameter Name="Brightness Threshold" Type="Real" Value="0.002"/>
+	<Parameter Name="Max Ray Tracing Depth" Type="Integer" Value="5"/>
+	<Parameter Name="Irradiance Scale" Type="RGB" Value="1 1 1"/>
+	<Parameter Name="Linear Lightflow" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Diffuse Samples" Type="Integer" Value="64"/>
+	<Parameter Name="./Sampling Criteria/Specular Samples" Type="Integer" Value="8"/>
+	<Parameter Name="./Sampling Criteria/Dispersion Samples" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Trace Diffusers" Type="Boolean" Value="0"/>
+	<Parameter Name="./Sampling Criteria/Trace Translucencies" Type="Boolean" Value="0"/>
+	<Parameter Name="./Sampling Criteria/Trace Fuzzy Reflections" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Trace Fuzzy Refractions" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Trace Reflections" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Trace Refractions" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Random Generator" Type="String" Value="Pure"/>
+</Object>
+<Object Identifier="./Irradiance Estimators/Diffuse Interreflection" Label="Diffuse Interreflection" Name="Diffuse Interreflection" Type="Irradiance Estimator">
+	<Parameter Name="Enabled" Type="Boolean" Value="1"/>
+	<Parameter Name="Max Recursion Depth" Type="Integer" Value="1"/>
+	<Parameter Name="Max Ray Tracing Depth" Type="Integer" Value="5"/>
+	<Parameter Name="Final Gathering Rays" Type="Integer" Value="500"/>
+	<Parameter Name="Light Sampling" Type="Boolean" Value="1"/>
+	<Parameter Name="Ambient Lighting" Type="Boolean" Value="0"/>
+	<Parameter Name="Accuracy" Type="Real" Value="0.25"/>
+	<Parameter Name="Minimum Pixel Reuse" Type="Real" Value="2.5"/>
+	<Parameter Name="Maximum Pixel Reuse" Type="Real" Value="0"/>
+	<Parameter Name="Radiance Limit" Type="Real" Value="0.3"/>
+	<Parameter Name="Secondary Estimator" Type="String" Value="Density Estimation"/>
+</Object>
+<Object Identifier="./Irradiance Estimators/Density Estimation" Label="Density Estimation" Name="Density Estimation" Type="Irradiance Estimator">
+	<Parameter Name="Enabled" Type="Boolean" Value="1"/>
+	<Parameter Name="Direct Lighting" Type="Boolean" Value="1"/>
+	<Parameter Name="Max Photon Tracing Depth" Type="Integer" Value="6"/>
+	<Parameter Name="Terminating Brightness" Type="Real" Value="0.01"/>
+	<Parameter Name="Samples per Light" Type="Integer" Value="100000"/>
+	<Parameter Name="Sample Sky" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Diffuse Samples" Type="Integer" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Specular Samples" Type="Integer" Value="0"/>
+	<Parameter Name="./Sampling Criteria/Dispersion Samples" Type="Boolean" Value="0"/>
+	<Parameter Name="./Sampling Criteria/Trace Reflections" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Trace Refractions" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Importance Sampling" Type="Boolean" Value="1"/>
+	<Parameter Name="./Sampling Criteria/Russian Roulette" Type="Boolean" Value="0"/>
+</Object>
+<Object Identifier="./Direct Light Estimators/Refraction Enhanced" Label="Refraction Enhanced" Name="Refraction Enhanced" Type="Direct Light Estimator">
+	<Parameter Name="Enabled" Type="Boolean" Value="1"/>
+	<Parameter Name="PseudoCaustics" Type="Boolean" Value="0"/>
+	<Parameter Name="Antialiasing" Type="String" Value="Low"/>
+	<Parameter Name="Optimized Area Lights" Type="Boolean" Value="1"/>
+</Object>
+<Object Identifier="./Environments/Octree Environment" Label="Octree Environment" Name="Octree Environment" Type="Environment">
+	<Parameter Name="Max Objects per Cell" Type="Integer" Value="20"/>
+</Object>
+<Object Identifier="./Filters/Simple Tone Mapping" Label="Simple Tone Mapping" Name="" Type="Filter">
+	<Parameter Name="Enabled" Type="Boolean" Value="1"/>
+	<Parameter Name="Method" Type="String" Value="Simple"/>
+	<Parameter Name="Exposure" Type="Real" Value="1"/>
+	<Parameter Name="Gamma Correction" Type="Real" Value="2.2"/>
+</Object>
+</Root>
