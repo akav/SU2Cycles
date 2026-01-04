@@ -63,12 +63,21 @@ class SU2CYCLES
     @scene_export = false # True when exporting a model for each scene
     @status_prefix=""
 
-    @ds = (ENV['OS'] =~ /windows/i) ? "\\" : "/" # directory separator for Windows : OS X
+    @ds = File::SEPARATOR # directory separator - cross-platform
 
   end
 
   def self.ds
     @ds
+  end
+
+  # Get the path to the SU2CYCLES plugin directory
+  def SU2CYCLES::get_su2cycles_path
+    path = Sketchup.find_support_file("su2cycles", "Plugins")
+    if path.nil?
+      path = File.dirname(__FILE__) + @ds + "su2cycles"
+    end
+    return path
   end
 
 # ----------------------------------------Extract the camera parameters of a particular page
@@ -113,83 +122,57 @@ class SU2CYCLES
 
   def SU2CYCLES::write_camera( p, user_eye, user_x, user_y, user_z, user_up, user_target, w_x_h, user_foc, out, pers)
 
-
-    ######################################################
-    # Camera template
-    #  <!-- Camera -->
-    #  <!--<lookat pos="0 0 5" look="0 0 0" up="0 1 0">-->
-	  #  <lookat pos="5 10 -5" look="0.1 0.0 0.1" up="0 1 0">
-		#      <camera width="800" height="500" type="perspective" />
-	  #  </lookat>
-	  #  <!--<transform translate="0 0 -1">
-		#      <camera width="800" height="500" type="perspective" />
-    #  </transform>-->
-     
     projection="perspective" if pers==true
     projection="orthographic" if pers==false
-    user_foc=user_foc/36 if pers==true
+    
+    # Convert focal length to FOV in radians for Cycles
+    # SketchUp focal length is in mm, sensor width is ~36mm
+    if pers==true
+      fov = 2.0 * Math.atan(18.0 / user_foc.to_f)  # 36mm sensor / 2 = 18mm half-width
+    else
+      fov = 0.785398  # Default 45 degrees for orthographic
+    end
 
-    out.puts "<!-- Camera -->" ##+ SU2CYCLES.normalize_text(p).tr('#', '') + " " +
+    out.puts "<!-- Camera -->"
     
     x = w_x_h.split("x")[0]
     y = w_x_h.split("x")[1]
 
-    #user_camera = view.camera
-		#user_eye = user_camera.eye
-		#user_target=user_camera.target
-		#user_up=user_camera.up
+    # Camera position in meters
+    cx = user_eye.x.to_m.to_f
+    cy = user_eye.y.to_m.to_f
+    cz = user_eye.z.to_m.to_f
 
-		#out_user_target = "%12.6f" %(user_target.x.to_m.to_f) + " " + "%12.6f" %(user_target.y.to_m.to_f) + " " + "%12.6f" %(user_target.z.to_m.to_f)
-		#out_user_up = "%12.6f" %(user_up.x) + " " + "%12.6f" %(user_up.y) + " " + "%12.6f" %(user_up.z)
-		#out.puts " LookAt"
-		#out.puts "%12.6f" %(user_eye.x.to_m.to_f) + " " + "%12.6f" %(user_eye.y.to_m.to_f) + " " + "%12.6f" %(user_eye.z.to_m.to_f)
-		#out.puts out_user_target
-		#out.puts out_user_up
-	  #out.print "\n"
-
-    #view_cam = Sketchup.active_model.active_view
-   
-    #view_cam_target_x = view_cam.target.xaxis
-    #view_cam_target_y = view_cam.target.yaxis
-    #view_cam_target_z = view_cam.target.zaxis
-    #puts "Camera location=#{cam.eye}" #where the camera is
-    #puts "Camera target=#{cam.target}" #where the camera is pointed
-    #puts "Camera up=#{cam.up}" #where top of the camera is facing
+    # Build camera transformation matrix
+    # Cycles uses a 4x4 matrix in row-major order
+    # Camera axes: X=right, Y=up, Z=backward (looking along -Z)
     
-    # USER EYE (X,Y,Z) TO METER TO FLOAT 
-    cx=user_eye.x.to_m.to_f
-    cy=user_eye.y.to_m.to_f
-    cz=user_eye.z.to_m.to_f
-
-    cupx = user_up.x.to_m.to_f
-    cupy = user_up.y.to_m.to_f
-    cupz = user_up.z.to_m.to_f
-
-    rvx=user_x.x.to_cm.to_f
-    rvy=user_x.y.to_cm.to_f
-    rvz=user_x.z.to_cm.to_f
-
-    #Distance?
-    dvx=0.0-user_y.x.to_cm.to_f
-    dvy=0.0-user_y.y.to_cm.to_f
-    dvz=0.0-user_y.z.to_cm.to_f
-
-    tvx=user_z.x.to_cm.to_f
-    tvy=user_z.y.to_cm.to_f
-    tvz=user_z.z.to_cm.to_f
+    # SketchUp camera axes
+    rx = user_x.x
+    ry = user_x.y
+    rz = user_x.z
     
-    #out.puts "<!--<lookat pos=\"  #{rvx} #{rvy} #{rvz}  \" look=\" \" up=\"#{view_cam_up.to_s}\">-->"
-    #out.puts "<!--<lookat pos=\" #{cx} #{cy} #{cz} \" look=\"#{user_target.to_s}\" up=\"#{cupx} #{cupy} #{cupz}\">-->"
-    #out.puts "<lookat pos=\" #{cx} #{cy} #{cz} \" look=\"0 0 0\" up=\"#{cupx} #{cupy} #{cupz}\">"
-    out.puts "<camera width=\"#{x}\" height=\"#{y}\"/>"
-    #out.puts "\n"
-    #out.puts "</lookat>"
+    ux = user_up.x
+    uy = user_up.y
+    uz = user_up.z
     
-    #out.puts "<transform translate=" + "\"" + "%.4f" % (tvx) + " " + "%.4f" % (tvy) + " " + "%.4f" % (tvz) + "\"" + " scale=" + "\"1 1 1\"" + " rotate="  + "\"" +  "%.4f" % (rvx)  + " " + "%.4f" % (rvy) + " " + "%.4f" % (rvz) +"\">"
-    out.puts "<transform translate=\" #{cx} #{cy} #{cz} \" scale=\" 1 1 1 \">" 
-    out.puts "\t<camera type=\"#{projection}\"/>"
+    # Forward direction (negative Z in camera space)
+    fx = -user_y.x
+    fy = -user_y.y
+    fz = -user_y.z
+
+    # Build 4x4 transformation matrix (row-major for Cycles)
+    # Format: m00 m01 m02 m03  m10 m11 m12 m13  m20 m21 m22 m23  m30 m31 m32 m33
+    matrix_str = "#{"%.6f" % rx} #{"%.6f" % ux} #{"%.6f" % fx} #{"%.6f" % cx} "
+    matrix_str += "#{"%.6f" % ry} #{"%.6f" % uy} #{"%.6f" % fy} #{"%.6f" % cy} "
+    matrix_str += "#{"%.6f" % rz} #{"%.6f" % uz} #{"%.6f" % fz} #{"%.6f" % cz} "
+    matrix_str += "0 0 0 1"
+
+    # Write camera with transform
+    out.puts "<transform matrix=\"#{matrix_str}\">"
+    out.puts "\t<camera width=\"#{x}\" height=\"#{y}\" type=\"#{projection}\" fov=\"#{"%.6f" % fov}\" />"
     out.puts "</transform>"
-    out.puts "\n"
+    out.puts ""
 
     @n_cameras +=1
 
@@ -215,11 +198,18 @@ class SU2CYCLES
 
       background="Background Color"
 
+      # Get SketchUp background color
+      bg_color = Sketchup.active_model.rendering_options["BackgroundColor"]
+      r = bg_color.red / 255.0
+      g = bg_color.green / 255.0
+      b = bg_color.blue / 255.0
+
       out.puts "<!-- Background Shader -->"
       out.puts "<background>"
-      out.puts "\t<background name=\"bg\" strength=\"1.0\" color=\"0.99, 0.5, 0.25\" />"
+      out.puts "\t<background_shader name=\"bg\" strength=\"1.0\" color=\"#{"%.4f" % r} #{"%.4f" % g} #{"%.4f" % b}\" />"
       out.puts "\t<connect from=\"bg background\" to=\"output surface\" />"
       out.puts "</background>"
+      out.puts ""
     end
 
     si = Sketchup.active_model.shadow_info
@@ -305,12 +295,10 @@ class SU2CYCLES
   def SU2CYCLES::write_definitions(out)
 
     @components.each do |comp_def,comp_data|
-      #out.puts "<Object Identifier=\"./Instances/Model/#{SU2CYCLES.normalize_text(comp_def)}\" Label=\"Default Model\" Name=\"#{SU2CYCLES.normalize_text(comp_def)}\" Type=\"Model\">"
+      # Export meshes for this component definition
       @parent_mat=[Sketchup.active_model.materials[comp_def.split(@mat_sep).last]]
       SU2CYCLES.export_meshes(out,Sketchup.active_model.definitions[comp_def.split(@mat_sep).first])
       @parent_mat=[]
-
-      out.puts "</Object>"
     end
   end
 
@@ -460,14 +448,33 @@ class SU2CYCLES
 
 #### -------------- HEADER / FOOTER FOR XML FILE ----------------- ##########
 
-  # Write the XML header
+  # Write the XML header with integrator and film settings
   def SU2CYCLES::write_xml_header(out)
+    out.puts "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
     out.puts "<cycles>"
-    out.puts "\n"
+    out.puts ""
+    out.puts "<!-- Integrator Settings -->"
+    out.puts "<integrator method=\"path\" max_bounce=\"8\" />"
+    out.puts ""
+    out.puts "<!-- Film Settings -->"
+    out.puts "<film exposure=\"1.0\" />"
+    out.puts ""
   end
   
   # Writing XML footer and close file
   def SU2CYCLES::write_xml_footer(out)
+    out.puts "\n"
+    out.puts "</cycles>"
+    out.close
+  end
+
+  # Export global settings - compatibility wrapper
+  def SU2CYCLES::export_global_settings(out)
+    SU2CYCLES.write_xml_header(out)
+  end
+
+  # Finish and close XML file
+  def SU2CYCLES::finish_close(out)
     out.puts "\n"
     out.puts "</cycles>"
     out.close
@@ -751,14 +758,30 @@ class SU2CYCLES
 
           trans=glob_trans.to_a #light location
 
-          x = trans[12]
-          y = trans[13]
-          z = trans[14]
+          x = trans[12].to_m.to_f
+          y = trans[13].to_m.to_f
+          z = trans[14].to_m.to_f
 
           ptx=glob_trans.xaxis
           pty=glob_trans.yaxis
           ptz=glob_trans.zaxis
           
+          # Get light color and power
+          light_color = params[3] # RGB string like "1.0 1.0 1.0"
+          light_power = params[1].to_f
+          light_name = SU2CYCLES.normalize_text(params[0])
+          
+          # Write Cycles point light XML
+          out.puts "<!-- Point Light: #{light_name} -->"
+          out.puts "<shader name=\"#{light_name}_emission\">"
+          out.puts "\t<emission name=\"emission\" color=\"#{light_color}\" strength=\"#{light_power}\" />"
+          out.puts "\t<connect from=\"emission emission\" to=\"output surface\" />"
+          out.puts "</shader>"
+          out.puts ""
+          out.puts "<state shader=\"#{light_name}_emission\">"
+          out.puts "\t<light type=\"point\" co=\"#{"%.6f" % x} #{"%.6f" % y} #{"%.6f" % z}\" />"
+          out.puts "</state>"
+          out.puts ""
 
           @n_pointlights +=1
 
@@ -798,58 +821,41 @@ class SU2CYCLES
 
           trans = glob_trans.to_a
 
-          x = trans[12]
-          y = trans[13]
-          z = trans[14]
+          x = trans[12].to_m.to_f
+          y = trans[13].to_m.to_f
+          z = trans[14].to_m.to_f
 
           ptx=glob_trans.xaxis
           pty=glob_trans.yaxis
           ptz=glob_trans.zaxis
 
-          #out.puts "<Object Identifier=\"./Lights/" + SU2CYCLES.normalize_text(params[0]) + "\" Label=\"Default Light\" Name=\"" + SU2CYCLES.normalize_text(params[0]) + "\" Type=\"Light\">"
+          # Get light parameters
+          light_color = params[3] # RGB string like "1.0 1.0 1.0"
+          light_power = params[1].to_f
+          light_name = SU2CYCLES.normalize_text(params[0])
+          
+          # Calculate spot angle from radius/falloff (convert to radians)
+          spot_angle = rad_fall_tight[1].to_f * Math::PI / 180.0
+          spot_smooth = 0.15 # Blend between spot edge and center
+          
+          # Direction vector (negative Z-axis of the spotlight)
+          dir_x = -ptz.x
+          dir_y = -ptz.y
+          dir_z = -ptz.z
 
-          if SU2CYCLES.normalize_text(params[0]).upcase.include?(".IES")  #this is an IES Light  Lee Anderson
-            #out.puts "<Object Identifier=\"IES Light\" Label=\"IES Light\" Name=\"\" Type=\"Emittance\">"
-          else #this is a Spot Light
-            #out.puts "<Object Identifier=\"Spot Light\" Label=\"Spot Light\" Name=\"\" Type=\"Emittance\">"
-          end
-
-          #out.puts "<Object Identifier=\"./Radiance/Constant Texture\" Label=\"Constant Texture\" Name=\"\" Type=\"Texture\">"
-          #out.puts "<Parameter Name=\"Color\" Type=\"RGB\" Value=\"" + params[3] + "\" />"
-          #out.puts "</Object>"
-
-          if SU2CYCLES.normalize_text(params[0]).upcase.include?(".IES") then  #this is an IES Light Lee Anderson
-            path=SU2CYCLES.get_su2cycles_path
-            path=File.join(path.split(@ds))
-            path=File.dirname(path)+"/ies/"+SU2CYCLES.normalize_text(params[0])
-            #out.puts ("<Parameter Name=\"Filename\" Type=\"File\" Value=\""+path+"\"/>")
-            #out.puts "<Parameter Name=\"Attenuation\" Type=\"String\" Value=\"Inverse Square\"/>"
-          else #this is a SpotLight
-            #out.puts "<Parameter Name=\"Attenuation\" Type=\"String\" Value=\"#{attenuation}\"/>"
-            falloff = rad_fall_tight[1].to_s
-            #out.puts "<Parameter Name=\"Fall Off\" Type=\"Real\" Value=\"" + falloff + "\"/>"
-            radius = rad_fall_tight[0].to_s
-            #out.puts "<Parameter Name=\"Hot Spot\" Type=\"Real\" Value=\"" + radius + "\"/>"
-          end
-
-          #out.puts "</Object>"
-          #out.puts "<Parameter Name=\"Enabled\" Type=\"Boolean\" Value=\"1\"/>"
-          #out.puts "<Parameter Name=\"Shadow\" Type=\"Boolean\" Value=\"1\"/>"
-          #out.puts "<Parameter Name=\"Soft Shadow\" Type=\"Boolean\" Value=\"1\"/>"
-          #out.puts "<Parameter Name=\"Negative Light\" Type=\"Boolean\" Value=\"0\"/>"
-          #out.puts "<Parameter Name=\"Global Photons\" Type=\"Boolean\" Value=\"1\"/>"
-          #out.puts "<Parameter Name=\"Caustic Photons\" Type=\"Boolean\" Value=\"1\"/>"
-          #out.puts "<Parameter Name=\"Multiplier\" Type=\"Real\" Value=\"" + params[1].to_s + "\"/>"
-          #out.puts "<Parameter Name=\"Frame\" Type=\"Transform\" Value=\"" + "%.4f" % (ptx.x) + " " + "%.4f" % (pty.x) + " " + "%.4f" % (0.0-ptz.x) + " " + "%.4f" % (x.to_m)
-          #out.puts "%.4f" % (ptx.y) + " " + "%.4f" % (pty.y) + " " + "%.4f" % (0.0-ptz.y) + " " + "%.4f" % (y.to_m)
-          #out.puts "%.4f" % (ptx.z) + " " + "%.4f" % (pty.z) + " " + "%.4f" % (0.0-ptz.z) + " " + "%.4f" % (z.to_m)
-          #out.puts "\"/>"
-          dist=e.get_attribute("SU2CYCLES", "distance")
-          dist=1 if dist==nil
-          #out.puts "<Parameter Name=\"Focus Distance\" Type=\"Real\" Value=\"#{dist}\"/>"
-          #out.puts "<Parameter Name=\"Radius\" Type=\"Real\" Value=\"0\"/>"
-          #out.puts "<Parameter Name=\"Shadow Color\" Type=\"RGB\" Value=\"0 0 0\"/>"
-          #out.puts "</Object>"
+          # Write Cycles spot light XML
+          out.puts "<!-- Spot Light: #{light_name} -->"
+          out.puts "<shader name=\"#{light_name}_emission\">"
+          out.puts "\t<emission name=\"emission\" color=\"#{light_color}\" strength=\"#{light_power}\" />"
+          out.puts "\t<connect from=\"emission emission\" to=\"output surface\" />"
+          out.puts "</shader>"
+          out.puts ""
+          out.puts "<state shader=\"#{light_name}_emission\">"
+          out.puts "\t<light type=\"spot\" co=\"#{"%.6f" % x} #{"%.6f" % y} #{"%.6f" % z}\" "
+          out.puts "\t\tdir=\"#{"%.6f" % dir_x} #{"%.6f" % dir_y} #{"%.6f" % dir_z}\" "
+          out.puts "\t\tspot_angle=\"#{"%.6f" % spot_angle}\" spot_smooth=\"#{"%.4f" % spot_smooth}\" />"
+          out.puts "</state>"
+          out.puts ""
 
           @n_spotlights +=1
 
@@ -1269,14 +1275,9 @@ class SU2CYCLES
   
 
   def SU2CYCLES::write_packets(out)
-    @components.each do|comp_def, comp_transs|
-      out.puts "<Object Identifier=\"./Models/#{comp_def}\" Label=\"Model Package\" Name=\"#{SU2CYCLES.normalize_text(comp_def)}\" Type=\"Model\">"
-      out.puts "<Parameter Name=\"Alias\" Type=\"String\" Value=\"#{SU2CYCLES.normalize_text(comp_def)}\"/>"
-      out.puts "<Parameter Name=\"Position\" Type=\"Transform List\" Value=\"#{comp_transs.length.to_i}\">"
-      comp_transs.each {|trans| out.puts "<T r=\"#{SU2CYCLES.get_su2cycles_matrix(trans)}\"/>"}
-      out.puts "</Parameter>"
-      out.puts "</Object>"
-    end
+    # Note: Cycles XML doesn't have a direct equivalent for instanced geometry packets.
+    # Each instance needs its own transform wrapper. This is handled by export_meshes.
+    # This method is kept for compatibility but component transforms are applied during mesh export.
   end
 
   def SU2CYCLES::get_su2cycles_matrix(trans)
@@ -1546,6 +1547,7 @@ class SU2CYCLES
     SU2CYCLES.status_bar("Converting Faces to Meshes: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " #{rest}")
     #####
 
+    transformations = []  # Store transformations for UV calculation
 
     for face_data in export
 
@@ -1560,6 +1562,7 @@ class SU2CYCLES
       default_mat.push(face_mat_dir ? face.material==nil : face.back_material==nil)
       distorted_uv.push(uvHelp)
       mat_dir.push(face_mat_dir)
+      transformations.push(trans)  # Store the transformation
 
       polymesh.transform! trans
 
@@ -1597,29 +1600,24 @@ class SU2CYCLES
     # Exporting vertices
     current_step += 1
 
-    out.puts "<!-- Mesh Node -->"
-    out.puts "<transform matrix=\"1.0 0.0 0.0 0.0  0.0 1.0 0.0 0.0  0.0 0.0 1.0 0.0  0.0 0.0 0.0 1.0\">"
-  	out.puts "\t<state shader=\"Material\">"
-
-    out.puts "\t<mesh P=\""
-    
-    SU2CYCLES.status_bar("Material being exported: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " - Verticles " + " #{rest}")
+    # Collect all vertex positions as a string
+    vertices_str = ""
+    SU2CYCLES.status_bar("Material being exported: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " - Vertices " + " #{rest}")
 
     for mesh in meshes
-      SU2CYCLES.status_bar("Material being exported: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " - Verticles " + " #{rest}") if rest%500==0
+      SU2CYCLES.status_bar("Material being exported: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " - Vertices " + " #{rest}") if rest%500==0
       rest -= 1
 
       for p in (1..mesh.count_points)
         pos = mesh.point_at(p)
-        out.print "\t\t #{"%.4f" %(pos.x*@scale)} #{"%.4f" %(pos.y*@scale)} #{"%.4f" %(pos.z*@scale)} \n"
+        vertices_str += "#{"%.6f" %(pos.x*@scale)} #{"%.6f" %(pos.y*@scale)} #{"%.6f" %(pos.z*@scale)} "
       end
     end
-    out.puts "\t\"\n"
 
-    # Exporting normals
+    # Collect normals
     current_step += 1
-    i=0
-    out.puts "\n\tnverts=\"" + "3 " * polycount
+    normals_str = ""
+    i = 0
     SU2CYCLES.status_bar("Material being exported: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " - Normals " + " #{rest}")
 
     for mesh in meshes
@@ -1630,23 +1628,20 @@ class SU2CYCLES
       for p in (1..mesh.count_points)
         norm = mesh.normal_at(p)
         norm.reverse! if mat_dir_tmp==false
-        #norm.reverse! if mirrored_tmp
-        #out.print "\n#{"%.8f" %(norm.x)} #{"%.8f" %(norm.y)} #{"%.8f" %(norm.z)} "
+        normals_str += "#{"%.6f" %(norm.x)} #{"%.6f" %(norm.y)} #{"%.6f" %(norm.z)} "
       end
       i += 1
     end
-    out.print "\t\"\n"
 
-    # Exporting faces
+    # Collect face indices (nverts tells vertices per face, verts lists vertex indices)
     current_step += 1
-    out.puts "\n\tverts=\""
+    nverts_str = "3 " * polycount  # All triangles
+    verts_str = ""
     
     i = 0
     startindex = 0
-    #SU2CYCLES.status_bar("Material being exported: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " - Faces " + " #{rest}")
 
     for mesh in meshes
-      #SU2CYCLES.status_bar("Material being exported: " + matname + mat_step + "...[" + current_step.to_s + "/" + total_step.to_s + "]" + " - Faces " + " #{rest}") if rest%500==0
       rest -= 1
       mirrored_tmp = mirrored[i]
       mat_dir_tmp = mat_dir[i]
@@ -1657,9 +1652,9 @@ class SU2CYCLES
         poly.reverse! if mirrored_tmp
 
         if mat_dir_tmp
-          out.print "\t\t #{poly[0]} #{poly[1]} #{poly[2]} \n"
+          verts_str += "#{poly[0]} #{poly[1]} #{poly[2]} "
         else
-          out.print "\t\t #{poly[1]} #{poly[0]} #{poly[2]} \n"
+          verts_str += "#{poly[1]} #{poly[0]} #{poly[2]} "
         end
 
         @count_tri = @count_tri + 1
@@ -1668,38 +1663,18 @@ class SU2CYCLES
       i += 1
     end
 
-    out.print "\t\"/> \n" #Closing Triangular Mesh
-
-    # Exporting Material
-
+    # Get main material reference
     if @model_textures[matname]!=nil
       main_mat = @model_textures[matname][5]
     else
       main_mat = mat
     end
 
-    su2cycles_attr=main_mat.attribute_dictionary "SU2CYCLES" if main_mat.class!=String
-
-    if (su2cycles_attr!=nil and su2cycles_attr["su2cycles_mat"] !=nil) and @clay==false
-      out.puts su2cycles_attr["su2cycles_mat"]
-      SU2CYCLES.add_bump(out,mat) if main_mat.respond_to?(:texture) and main_mat.texture!=nil and !su2cycles_attr["su2cycles_mat"].include?("Parameter Name=\"Filename\"")
-    else
-      if (main_mat.respond_to?(:name) and main_mat.display_name[0..2]=="TG_" and @clay==false)
-        SU2CYCLES.export_thin_glass(out,mat)
-      else
-        SU2CYCLES.export_phong(out,mat,main_mat) if @clay==false
-        SU2CYCLES.export_clay(out) if @clay==true
-      end
-    end
-
     no_texture_uvs=(!has_texture and @exp_default_uvs==true)
     
-    
-    #Exporting UVs
-    out.puts("\n\tUV=\"\n")
+    # Collect UVs
+    uv_str = ""
     if (has_texture and @clay==false) or no_texture_uvs
-
-      #out.print "	<Parameter Name=\"Map Channel\" Type=\"Point2D List\" Value=\"#{pointcount}\">\n"
 
       current_step += 1
       i = 0
@@ -1709,8 +1684,6 @@ class SU2CYCLES
         rest -= 1
 
         side=(no_texture_uvs) ? true : mat_dir[i]
-
-        
 
         for p in (1 .. mesh.count_points)
 
@@ -1723,40 +1696,34 @@ class SU2CYCLES
 
           if distorted_uv[i]!=nil
             uvHelper=(export[i][0]).get_UVHelper(side, !side, @texture_writer)
-            point_pos=mesh.point_at(p).transform!(trans.inverse)
+            point_pos=mesh.point_at(p).transform!(transformations[i].inverse)
             uvs_original=(side ? uvHelper.get_front_UVQ(point_pos) : uvHelper.get_back_UVQ(point_pos))
           else
             uvs_original=mesh.uv_at(p,side)
           end
-          uv = [uvs_original.x/texsize.x, uvs_original.y/texsize.y, uvs_original.z/texsize.z]
+          uv = [uvs_original.x/texsize[0], uvs_original.y/texsize[1], uvs_original.z/texsize[2]]
 
-          out.puts "\t\t#{"%.4f" %(uv.x)} #{"%.4f" %(-uv.y+1)}"
-          #out.puts "	<P xy=\"#{"%.4f" %(uv.x)} #{"%.4f" %(-uv.y+1)}\"/>"
+          uv_str += "#{"%.4f" %(uv[0])} #{"%.4f" %(-uv[1]+1)} "
         end
         i += 1
       end
-      
-    else
-      #out.puts "	<Parameter Name=\"Map Channel\" Type=\"Point2D List\" Value=\"0\">"
-      #out.puts "	</Parameter>"
     end
 
-    if (su2cycles_attr != nil and su2cycles_attr["su2cycles_map"] != nil)
-      #out.puts su2cycles_attr["su2cycles_map"]
-    else
-      #out.puts "	<Parameter Name=\"Frame\" Type=\"Transform\" Value=\"1 0 0 0 0 1 0 0 0 0 1 0\"/>"
-      #out.puts "	<Parameter Name=\"Visible\" Type=\"Boolean\" Value=\"1\"/>"
-      #out.puts "	<Parameter Name=\"Shadow Caster\" Type=\"Boolean\" Value=\"1\"/>"
-      #out.puts "	<Parameter Name=\"Shadow Receiver\" Type=\"Boolean\" Value=\"1\"/>"
-      #out.puts "	<Parameter Name=\"Caustics Transmitter\" Type=\"Boolean\" Value=\"1\"/>"
-      #out.puts "	<Parameter Name=\"Caustics Receiver\" Type=\"Boolean\" Value=\"1\"/>"
-    end
+    # First write the shader definition for this material
+    SU2CYCLES.write_shader_definitions(out, matname, mat, main_mat)
 
-    out.puts "\t\"/>\n"
-    # Close the transform block
-    out.puts "\t</state>"
-    out.puts "</transform>"
-    out.puts "\n"
+    # Now output the complete mesh element
+    out.puts "<!-- Mesh: #{matname} -->"
+    out.puts "<state shader=\"#{SU2CYCLES.normalize_text(matname)}\">"
+    out.print "\t<mesh P=\"#{vertices_str.strip}\"\n"
+    out.print "\t\tnverts=\"#{nverts_str.strip}\"\n"
+    out.print "\t\tverts=\"#{verts_str.strip}\""
+    if uv_str.length > 0
+      out.print "\n\t\tUV=\"#{uv_str.strip}\""
+    end
+    out.puts " />"
+    out.puts "</state>"
+    out.puts ""
     
   end
 
@@ -1887,13 +1854,58 @@ class SU2CYCLES
 ##### --- EXPORT CLAY MATERIAL -----#####
 
   def SU2CYCLES::export_clay(out)
+    # Clay material is handled by exporting a default gray diffuse shader
+    # The shader definition should be separate from the mesh
+    # This method is called during mesh export but shaders are written separately
+  end
 
-    out.puts "<shader name=\"Material.001\">"
-    out.puts "<!-- <diffuse_bsdf name=\"m_diffuse_bsdf\" color=\"0.25490 0.53725 0.23922\" /> -->"
-		out.puts "<diffuse_bsdf name=\"m_diffuse_bsdf\" color=\"0.8 0.8 0.8\" />"
-    out.puts "<connect from=\"m_diffuse_bsdf bsdf\" to=\"output surface\" />"
-	  out.puts "</shader>"
-
+  # Write all shader definitions to the output file
+  def SU2CYCLES::write_shader_definitions(out, matname, mat, main_mat)
+    out.puts "<!-- Shader: #{SU2CYCLES.normalize_text(matname)} -->"
+    out.puts "<shader name=\"#{SU2CYCLES.normalize_text(matname)}\">"
+    
+    if @clay == true
+      # Simple gray diffuse for clay render
+      out.puts "\t<diffuse_bsdf name=\"diffuse\" color=\"0.8 0.8 0.8\" />"
+      out.puts "\t<connect from=\"diffuse bsdf\" to=\"output surface\" />"
+    elsif mat.respond_to?(:name) && mat.texture != nil && @model_textures[matname] != nil
+      # Textured material
+      texture_path = @model_textures[matname][4]
+      out.puts "\t<image_texture name=\"tex\" filename=\"#{SU2CYCLES.normalize_text(texture_path)}\" />"
+      out.puts "\t<diffuse_bsdf name=\"diffuse\" />"
+      out.puts "\t<connect from=\"tex color\" to=\"diffuse color\" />"
+      out.puts "\t<connect from=\"diffuse bsdf\" to=\"output surface\" />"
+    elsif mat.respond_to?(:color)
+      # Solid color material
+      r = mat.color.red / 255.0
+      g = mat.color.green / 255.0
+      b = mat.color.blue / 255.0
+      
+      if mat.respond_to?(:alpha) && mat.alpha < 1.0
+        # Transparent material
+        out.puts "\t<diffuse_bsdf name=\"diffuse\" color=\"#{"%.4f" % r} #{"%.4f" % g} #{"%.4f" % b}\" />"
+        out.puts "\t<transparent_bsdf name=\"transparent\" />"
+        out.puts "\t<mix_closure name=\"mix\" fac=\"#{"%.4f" % (1.0 - mat.alpha)}\" />"
+        out.puts "\t<connect from=\"diffuse bsdf\" to=\"mix closure1\" />"
+        out.puts "\t<connect from=\"transparent bsdf\" to=\"mix closure2\" />"
+        out.puts "\t<connect from=\"mix closure\" to=\"output surface\" />"
+      else
+        # Opaque material
+        out.puts "\t<diffuse_bsdf name=\"diffuse\" color=\"#{"%.4f" % r} #{"%.4f" % g} #{"%.4f" % b}\" />"
+        out.puts "\t<connect from=\"diffuse bsdf\" to=\"output surface\" />"
+      end
+    else
+      # Default white material (for Front Face)
+      colour = Sketchup.active_model.rendering_options["FaceFrontColor"]
+      r = colour.red / 255.0
+      g = colour.green / 255.0
+      b = colour.blue / 255.0
+      out.puts "\t<diffuse_bsdf name=\"diffuse\" color=\"#{"%.4f" % r} #{"%.4f" % g} #{"%.4f" % b}\" />"
+      out.puts "\t<connect from=\"diffuse bsdf\" to=\"output surface\" />"
+    end
+    
+    out.puts "</shader>"
+    out.puts ""
   end
 
 ### Add Bump description ###
@@ -1916,22 +1928,14 @@ class SU2CYCLES
 
   end
 
-### Clip mapping
+### Clip mapping (alpha/transparency)
+### Note: In Cycles, alpha mapping is handled via mix_closure with transparent_bsdf
+### This is already incorporated into write_shader_definitions for materials with alpha
 
   def SU2CYCLES::add_clip_map(out,mat)
-    ext=(@model_textures[mat][4]).split('.').last.upcase
-    if (ext=="PNG" or ext=="TIF")
-      out.puts "<Object Identifier=\"Alpha Mapping\" Label=\"Alpha Mapping\" Name=\"\" Type=\"Acceptance Modifier\">"
-      out.puts "	<Object Identifier=\"./Texture/Bitmap Texture\" Label=\"Bitmap Texture\" Name=\"\" Type=\"Texture\">"
-      out.puts "	<Parameter Name=\"Filename\" Type=\"String\" Value=\"#{@model_textures[mat][4]}\"/>"
-      out.puts SU2CYCLES.override_projection
-      out.puts "	<Parameter Name=\"Smooth\" Type=\"Boolean\" Value=\"1\"/>"
-      out.puts "	<Parameter Name=\"Inverted\" Type=\"Boolean\" Value=\"0\"/>"
-      out.puts "	<Parameter Name=\"Alpha Channel\" Type=\"Boolean\" Value=\"1\"/>"
-      out.puts "	</Object>"
-      out.puts "<Parameter Name=\"Threshold\" Type=\"Real\" Value=\"0.5\"/>"
-      out.puts "</Object>"
-    end
+    # Alpha/clip mapping in Cycles is handled differently than Kerkythea
+    # It's incorporated into the shader graph using transparent_bsdf and mix_closure
+    # The implementation is in write_shader_definitions
   end
 
 #### -- IMPORT su2cycles MATERIAL FROM LIBRARY --- ###
@@ -2495,20 +2499,25 @@ class SU2CYCLES
 
 
   def SU2CYCLES::get_render_settings
+    @ds ||= File::SEPARATOR
     settings = [] # Render settings (just the render setting name)
-    # Build a list of render settings from the Plugins/SU2CYCLES directory
-    path = File.dirname(__FILE__) + "/SU2CYCLES/*.xml"
+    # Build a list of render settings from the Plugins/su2cycles directory
+    path = File.dirname(__FILE__) + "/su2cycles/*.xml"
     files = Dir[path]
 
     # Build a list of render settings from the Kerkythea directory
     path = SU2CYCLES.get_su2cycles_path
-    return nil if (path == nil)
-    path = File.join(path.split(@ds)) # convert separator to "/"
-    path = File.dirname(path) + "/RenderSettings/*.xml"
-    files += Dir[path]
+    if path != nil
+      path = File.join(path.split(@ds)) # convert separator to "/"
+      path = File.dirname(path) + "/RenderSettings/*.xml"
+      files += Dir[path]
+    end
 
     # Strip off directory and file extension
     files.each {|file| settings.push(File.basename(file, ".xml"))}
+    
+    # Return empty arrays if no settings found
+    return [["Default"], [""]] if files.empty?
     return [settings, files]
   end
 
@@ -2547,22 +2556,24 @@ class SU2CYCLES
   end
 
 ##### ------ Export render settings ------ #####
-# Copies the render settings file into the model file
+# Outputs Cycles integrator and film settings at the start of the file
 # out           = output file
-# settings_file = render settings XML file
+# settings_file = render settings XML file (not used for Cycles, kept for compatibility)
   def SU2CYCLES::export_render_settings(out, settings_file)
 
-    out.puts "<Root Label=\"Default Kernel\" Name=\"\" Type=\"Kernel\">"
-
-    # Remove the root delimiters from the settings file
-    IO.foreach(settings_file) do |line|
-      temp = line.lstrip.downcase # Lower case, remove leading whitespace
-      if (temp.index('<root') != 0 and temp.index('</root') != 0)
-        out.puts(line)
-      end
-    end
-
-    out.puts "<Object Identifier=\"./Scenes/#{SU2CYCLES.normalize_text(@model_name)}\" Label=\"Default Scene\" Name=\"#{SU2CYCLES.normalize_text(@model_name)}\" Type=\"Scene\">"
+    # Write Cycles XML header
+    out.puts "<cycles>"
+    out.puts ""
+    
+    # Write integrator settings
+    out.puts "<!-- Integrator Settings -->"
+    out.puts "<integrator method=\"path\" max_bounce=\"8\" />"
+    out.puts ""
+    
+    # Write film settings  
+    out.puts "<!-- Film Settings -->"
+    out.puts "<film exposure=\"1.0\" />"
+    out.puts ""
 
   end
 
@@ -3296,9 +3307,11 @@ class SU2CYCLESL
     pt2=@ip2.position
     model=Sketchup.active_model
     definitions=model.definitions
-    path=Sketchup.find_support_file(@compname,"Plugins/SU2CYCLES")
+    # Try both folder names for compatibility
+    path=Sketchup.find_support_file(@compname,"Plugins/su2cycles")
+    path=Sketchup.find_support_file(@compname,"Plugins/SU2CYCLES") if path.nil?
     if path==nil #TO DO - create light if no skp
-      UI.messagebox("No \'#{@compname}\' found in Plugins/SU2CYCLES folder.\nPlease copy it to SketchUp Plugins folder from\nthe instalation archive or create manually.",MB_OK)
+      UI.messagebox("No \'#{@compname}\' found in Plugins/su2cycles folder.\nPlease copy it to SketchUp Plugins folder from\nthe installation archive or create manually.",MB_OK)
       return
     end
     definition=definitions.load(path.to_s)
@@ -3335,7 +3348,7 @@ if( not file_loaded?(__FILE__) )
     menu.add_item("SU2CYCLES: Edit Pointlight") {SU2CYCLES.set_pointlight_params(SU2CYCLES.point_selected,nil)} if SU2CYCLES.point_selected
     menu.add_item("SU2CYCLES: Edit Spotlight") {SU2CYCLES.set_spotlight_params(SU2CYCLES.spot_selected,nil)} if SU2CYCLES.spot_selected
     sel = Sketchup.active_model.selection
-    menu.add_item("SU2CYCLES: Replace by proxy object") {SU2CYCLES.create_porxy(sel.first)} if SU2CYCLES.valid_selection?(sel,false)
+    menu.add_item("SU2CYCLES: Replace by proxy object") {SU2CYCLES.create_prxy(sel.first)} if SU2CYCLES.valid_selection?(sel,false)
     if SU2CYCLES.valid_selection?(sel,true)
       menu.add_item("SU2CYCLES: Restore high poly definition") {SU2CYCLES.restore_high_def(sel.first)}
     end
@@ -3347,7 +3360,10 @@ if( not file_loaded?(__FILE__) )
   
   # add, delete, and rearrange items
   cmd = UI::Command.new("Export Model") {SU2CYCLES.export}
-  cmd.large_icon = cmd.small_icon = dir+"/SU2CYCLES/su2cycles_icon.png"
+  # Try lowercase folder first, fallback to uppercase for compatibility
+  icon_path = dir+"/su2cycles/su2cycles_icon.png"
+  icon_path = dir+"/SU2CYCLES/su2cycles_icon.png" unless File.exist?(icon_path)
+  cmd.large_icon = cmd.small_icon = icon_path
   cmd.status_bar_text = cmd.tooltip = "Export model to Blender Cycles XML"
   cmd_array.push(cmd)
   

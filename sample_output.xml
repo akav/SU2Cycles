@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sample Cycles XML output from SU2CYCLES exporter -->
+<!-- This is what a simple cube with one material should produce -->
+<!-- Based on Blender Cycles cycles_xml.cpp parser format -->
+
+<cycles>
+
+<!-- Integrator Settings -->
+<integrator method="path" max_bounce="8" />
+
+<!-- Film Settings -->
+<film exposure="1.0" />
+
+<!-- Camera with transform -->
+<transform translate="0 -5 2" rotate="70 1 0 0">
+	<camera width="1920" height="1080" type="perspective" fov="0.785398" />
+</transform>
+
+<!-- Background Shader -->
+<background>
+	<background_shader name="bg" strength="1.0" color="0.8 0.8 0.8" />
+	<connect from="bg background" to="output surface" />
+</background>
+
+<!-- Shader: Default_Material -->
+<shader name="Default_Material">
+	<diffuse_bsdf name="diffuse" color="0.8 0.8 0.8" />
+	<connect from="diffuse bsdf" to="output surface" />
+</shader>
+
+<!-- Shader: Red_Material -->
+<shader name="Red_Material">
+	<diffuse_bsdf name="diffuse" color="0.8 0.1 0.1" />
+	<connect from="diffuse bsdf" to="output surface" />
+</shader>
+
+<!-- Shader: Glass_Material (with transparency) -->
+<shader name="Glass_Material">
+	<diffuse_bsdf name="diffuse" color="0.9 0.95 1.0" />
+	<transparent_bsdf name="transparent" />
+	<mix_closure name="mix" fac="0.5" />
+	<connect from="diffuse bsdf" to="mix closure1" />
+	<connect from="transparent bsdf" to="mix closure2" />
+	<connect from="mix closure" to="output surface" />
+</shader>
+
+<!-- Shader: Textured_Material -->
+<shader name="Textured_Material">
+	<image_texture name="tex" filename="TX_MyModel/wood_texture.jpg" />
+	<diffuse_bsdf name="diffuse" />
+	<connect from="tex color" to="diffuse color" />
+	<connect from="diffuse bsdf" to="output surface" />
+</shader>
+
+<!-- Mesh: Default_Material (simple cube - 12 triangles) -->
+<state shader="Default_Material" interpolation="smooth">
+	<mesh P="0 0 0  1 0 0  1 1 0  0 1 0  0 0 1  1 0 1  1 1 1  0 1 1"
+		nverts="3 3 3 3 3 3 3 3 3 3 3 3"
+		verts="0 1 2  0 2 3  4 6 5  4 7 6  0 4 5  0 5 1  2 6 7  2 7 3  0 3 7  0 7 4  1 5 6  1 6 2"
+		UV="0 0  1 0  1 1  0 1  0 0  1 0  1 1  0 1" />
+</state>
+
+<!-- Point Light: Pointlight -->
+<shader name="Pointlight_emission">
+	<emission name="emission" color="1.0 1.0 1.0" strength="5.0" />
+	<connect from="emission emission" to="output surface" />
+</shader>
+
+<state shader="Pointlight_emission">
+	<light type="point" co="2 2 3" />
+</state>
+
+<!-- Spot Light: Spotlight -->
+<shader name="Spotlight_emission">
+	<emission name="emission" color="1.0 0.95 0.9" strength="10.0" />
+	<connect from="emission emission" to="output surface" />
+</shader>
+
+<state shader="Spotlight_emission">
+	<light type="spot" co="3 -2 4" 
+		dir="-0.5 0.3 -0.81" 
+		spot_angle="0.785398" spot_smooth="0.15" />
+</state>
+
+</cycles>
